@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تحليل الصور - BARIQ ᵏˢᵃ</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #343541;
+      padding: 20px;
+      margin: 0;
+      color: #ffffff;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #444654;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    h2 {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      cursor: pointer;
+    }
+
+    .header-img {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    .lens-button img {
+      width: 24px;
+      height: 24px;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #555;
+      margin-bottom: 20px;
+      font-size: 16px;
+      background-color: #343541;
+      color: #ffffff;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #10a37f;
+      background-color: #3c3f4a;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #10a37f;
+      color: white;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0e8e6f;
+    }
+
+    #response {
+      margin-top: 20px;
+      padding: 15px;
+      background: #3c3f4a;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      font-size: 16px;
+      color: #ffffff;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .read-button {
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    .read-button button {
+      padding: 6px 10px;
+      font-size: 12px;
+      background-color: #10a37f;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    select {
+      margin-top: 10px;
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      background-color: #343541;
+      color: white;
+      border: 1px solid #555;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="top-bar">
+      <h2 onclick="resetPage()">
+        <img src="bariq.png.png" class="header-img">
+        BARIQ ᵏˢᵃ
+      </h2>
+      <label class="lens-button" for="imgInput" title="رفع صورة">
+        <img src="lens.png.png" alt="Lens Icon" style="width: 24px; height: 24px;">
+      </label>
+      <input type="file" id="imgInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+    </div>
+
+    <textarea id="prompt" placeholder="اكتب سؤالك..."></textarea>
+    <button onclick="askAI()">إرسال</button>
+
+    <div style="margin-top: 20px;">
+      <button onclick="startVoiceRecognition()">🎤 بحث صوتي</button>
+      <select id="voiceMode">
+        <option value="bot">🔁 إرسال للبوت</option>
+        <option value="song">🎵 بحث عن أغنية</option>
+      </select>
+    </div>
+
+    <div>
+      <select id="imageMode">
+        <option value="describe">📷 وصف الصورة</option>
+        <option value="homework">📝 حل الواجب</option>
+      </select>
+    </div>
+
+    <div id="response">الرد سيظهر هنا...</div>
+  </div>
+
+  <script>
+    let isReading = false;
+    let synth = window.speechSynthesis;
+    let utterance;
+    let base64Image = null;
+
+    const clientId = "2c83f51902774addbc5a31c5b33d26cf";
+    const clientSecret = "a0c0de0295aa41b4a205a0ae638cb1d6";
+
+    function toggleReading() {
+      if (!utterance) return;
+      if (!isReading) {
+        synth.speak(utterance);
+        document.getElementById("toggleButton").textContent = "إيقاف القراءة";
+        isReading = true;
+      } else {
+        synth.cancel();
+        document.getElementById("toggleButton").textContent = "تشغيل القراءة";
+        isReading = false;
+      }
+    }
+
+    function resetPage() {
+      document.getElementById("prompt").value = "";
+      document.getElementById("response").textContent = "الرد سيظهر هنا...";
+      base64Image = null;
+    }
+
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          base64Image = reader.result.split(',')[1];
+          document.getElementById("response").textContent = "✅ تم رفع الصورة بنجاح. اضغط إرسال لتحليلها.";
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    async function askAI() {
+      const promptInput = document.getElementById("prompt").value;
+      const responseDiv = document.getElementById("response");
+      const imageMode = document.getElementById("imageMode")?.value || "describe";
+      responseDiv.textContent = "جارٍ المعالجة...";
+
+      const apiKey = "AIzaSyBSlZKBvIJEuvh3W_WXnA9kV9U502bCDnE";
+
+      let parts = [];
+      if (base64Image) {
+        parts.push({
+          inline_data: {
+            mime_type: "image/jpeg",
+            data: base64Image
+          }
+        });
+
+        if (imageMode === "homework") {
+          parts.push({
+            text: "حل هذا الواجب خطوة بخطوة كأنك معلم يشرح لطالب في أولى ثانوي"
+          });
+        } else {
+          parts.push({
+            text: "صف هذه الصورة وكأنك تشرحها لطفل عمره 10 سنوات"
+          });
+        }
+      } else if (promptInput.trim() !== "") {
+        parts.push({ text: promptInput });
+      } else {
+        responseDiv.textContent = "يرجى كتابة سؤال أو رفع صورة!";
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts }]
+            })
+          }
+        );
+
+        const data = await res.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "لم يتم الحصول على رد.";
+
+        utterance = new SpeechSynthesisUtterance(reply);
+        utterance.lang = 'ar-SA';
+        utterance.rate = 1;
+
+        responseDiv.innerHTML = `
+          <div>${reply}</div>
+          <div class="read-button">
+            <button id="toggleButton" onclick="toggleReading()">تشغيل القراءة</button>
+          </div>`;
+      } catch (err) {
+        responseDiv.textContent = "حدث خطأ: " + err.message;
+      }
+    }
+
+    function startVoiceRecognition() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("المتصفح لا يدعم التعرف على الصوت.");
+        return;
+      }
+
+      const recognition = new webkitSpeechRecognition();
+      recognition.lang = 'ar-SA';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        document.getElementById("response").textContent = "🎙️ استمع الآن...";
+      };
+
+      recognition.onerror = () => {
+        document.getElementById("response").textContent = "❌ حدث خطأ في التعرف على الصوت.";
+      };
+
+      recognition.onresult = async (event) => {
+        const transcript = event.results[0][0].transcript;
+        const mode = document.getElementById("voiceMode").value;
+
+        if (mode === "bot") {
+          document.getElementById("prompt").value = transcript;
+          askAI();
+        } else if (mode === "song") {
+          document.getElementById("response").textContent = "🔍 جارٍ البحث عن الأغنية: " + transcript;
+          searchSong(transcript);
+        }
+      };
+
+      recognition.start();
+    }
+
+    async function searchSong(query) {
+      try {
+        const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: "Basic " + btoa(clientId + ":" + clientSecret),
+          },
+          body: "grant_type=client_credentials",
+        });
+
+        const tokenData = await tokenRes.json();
+        const accessToken = tokenData.access_token;
+
+        const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`, {
+          headers: {
+            Authorization: "Bearer " + accessToken,
+          },
+        });
+
+        const searchData = await searchRes.json();
+        const track = searchData.tracks.items[0];
+
+        if (track) {
+          document.getElementById("response").innerHTML = `
+            <div>🎶 تم العثور على أغنية:</div>
+            <div><strong>${track.name}</strong> - ${track.artists.map(a => a.name).join(", ")}</div>
+            <a href="${track.external_urls.spotify}" target="_blank" style="color: #1DB954;">استمع على Spotify 🎧</a>
+          `;
+        } else {
+          document.getElementById("response").textContent = "🙁 لم يتم العثور على أغنية بهذا الاسم.";
+        }
+      } catch (err) {
+        document.getElementById("response").textContent = "حدث خطأ في جلب نتائج الأغاني.";
+      }
+    }
+  </script>
+
+</body>
+</html>
